@@ -36,18 +36,6 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
-    // cuando el correo o la clave del login estan malos
-    @ExceptionHandler(CredencialesInvalidasException.class)
-    public ResponseEntity<Object> handleCredencialesInvalidas(CredencialesInvalidasException ex) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("timestamp", LocalDateTime.now());
-        response.put("error", "No autorizado");
-        response.put("message", ex.getMessage());
-        response.put("status", HttpStatus.UNAUTHORIZED.value());
-
-        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
-    }
-
     // Excepciones de validacion (valores nulos o vacios en el RequestBody)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Object> handleValidationException(MethodArgumentNotValidException ex) {

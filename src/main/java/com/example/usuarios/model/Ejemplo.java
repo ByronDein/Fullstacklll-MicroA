@@ -8,17 +8,18 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 
+// Entidad de ejemplo: se renombra o se copia para crear las entidades reales
 @Entity
-@Table(name = "roles")
-public class Rol {
+@Table(name = "ejemplos")
+public class Ejemplo {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 
-    @NotBlank(message = "El nombre del rol es obligatorio")
-    @Column(name = "nombre", unique = true)
+    @NotBlank(message = "El nombre es obligatorio")
+    @Column(name = "nombre")
     private String nombre;
 
     @Column(name = "descripcion")
