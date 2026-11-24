@@ -1,0 +1,79 @@
+name: Build, publish and deploy usuarios-service
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# un despliegue a la vez en la misma EC2
+concurrency:
+  group: foro-ec2-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build image, push to ECR and deploy to EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      COMPONENT: usuarios-service
+      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      ORACLE_CREDENTIALS_SECRET_ARN: ${{ vars.ORACLE_CREDENTIALS_SECRET_ARN }}
+      ORACLE_WALLET_S3_BUCKET: ${{ vars.ORACLE_WALLET_S3_BUCKET }}
+      ORACLE_WALLET_S3_KEY: ${{ vars.ORACLE_WALLET_S3_KEY }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS session and deployment target
+        run: |
+          aws sts get-caller-identity --query Account --output text
+          if [[ ! "$EC2_INSTANCE_ID" =~ ^i-[0-9a-f]{8,17}$ ]]; then
+            echo "::error::Define la variable EC2_INSTANCE_ID con el ID de la instancia."
+            exit 1
+          fi
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPONENT }}:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.COMPONENT }}:${{ github.sha }}
+
+      - name: Deploy to EC2 through Systems Manager
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: >-
+          bash ec2/ssm-run.sh
+          "$EC2_INSTANCE_ID"
+          "$AWS_REGION"
+          ec2/deploy-component.sh
+          "$COMPONENT"
+          "$AWS_REGION"
+          "$REGISTRY"
+          "$ORACLE_CREDENTIALS_SECRET_ARN"
+          "$ORACLE_WALLET_S3_BUCKET"
+          "$ORACLE_WALLET_S3_KEY"
